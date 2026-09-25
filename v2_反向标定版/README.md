@@ -34,6 +34,36 @@ RL(左后)、RR(右后)硬件接线无误,但同一个 `IN1=H, IN2=L` 信号
 - **不偷偷改引脚数字**:不把 RI 的 `IN1` 伪装成别人的引脚,而是显式语义 "此电机方向反了"。
 - **透明**:交换发生在 `__init__` 创建 Pin 对象之前。`drive() / brake() / calibrate_sign() / PI 控制` 一行未动,对后续所有逻辑完全透明。
 
+## 电机测试文件:根目录 vs single_tests/
+
+本版共有两组电机测试文件,建议**优先用 `single_tests/` 里的那组**:
+
+| 文件 | 位置 | 功能 |
+|------|------|------|
+| `motor_fl_test.py` | 根目录 | 四轮单测(校准 + 跟踪 + 负载) |
+| `motor_rl_test.py` | 根目录 | 同上 |
+| `motor_rr_test.py` | 根目录 | 同上 |
+| `motor_fr_test.py` | 根目录 | 同上 |
+| `single_tests/test_fl.py` | 子目录 | 四轮单测(纯前进) |
+| `single_tests/test_rl.py` | 子目录 | 同上 |
+| `single_tests/test_rr.py` | 子目录 | 同上 |
+| `single_tests/test_fr.py` | 子目录 | 同上 |
+
+另外还有 `motor1_test.py`(早期版本,引脚已过时)。
+
+### 为什么 `single_tests/` 更好
+
+**根目录那 4 个有两个问题:**
+
+1. **只初始化一个电机就拉 STBY**,其他三轮引脚浮空会误转。
+2. **依赖 `motor_test_lib.py` 的 `verify()`**,多一层依赖。
+
+**`single_tests/` 的 4 个更干净:**
+
+1. **初始化全部 8 个 IN 脚 + 4 个 PWM 脚为安全态再拉 STBY**,避免其他轮误转。
+2. 纯前进测试,`300/500/700/0 Hz`。
+3. **支持 `invert_dir`**。
+
 ## 本版新增文件
 
 | 文件 | 说明 |
