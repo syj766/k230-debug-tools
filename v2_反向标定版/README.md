@@ -1,60 +1,58 @@
-# K230 调试工具链
+# v2 —— 反向标定版
 
-K230 (工训项目) 串口调试 + 电机/底盘驱动开发脚本。
+本目录是第二版(反向标定版)。第一版原始文件保留在仓库根目录,**本版不覆盖任何第一版文件**,以独立子目录并存。
 
-## 目录结构
+## 核心改动:`invert_dir` 单电机方向反转
 
-```text
-k230调试/
-│
-├── 【串口链路】电脑 ↔ COM12 ↔ K230
-│   ├── k230_repl.py          发单条语句
-│   ├── k230_run.py           执行本地文件(多文件拼接)
-│   ├── k230_upload.py        烧录(CRC32 校验)
-│   └── k230_monitor.py       实时监视
-│
-├── 【三层驱动框架】
-│   ├── motor_closed.py       第一层: 单轮执行器
-│   ├── motor_manager.py      第二三层: poll_all + Chassis
-│   └── motor_test_lib.py     验证流程库
-│
-├── 【电机配置与测试】
-│   ├── motor_fl_test.py      FL  61 / 14,15 / 17,27
-│   ├── motor_rl_test.py      RL  46 / 36,37 / 40,41
-│   ├── motor_rr_test.py      RR  47 / 3,4   / 5,6
-│   ├── motor_fr_test.py      FR  52 / 32,33 / 34,35
-│   └── test_chassis.py       四驱差速(待跑)
-│
-└── motor1_test.py            ← 最早的版本, 引脚(GPIO40/41)已过时
+在 `motor_closed.py` 的 `ClosedMotor.__init__` 增加了一个参数:
+
+```python
+def __init__(self, ..., invert_dir=False):
+    ...
+    if invert_dir:
+        pin_in1, pin_in2 = pin_in2, pin_in1   # 两行,在创建 Pin 对象之前内部交换
 ```
 
-## 模块说明
+### 目的
 
-### 串口链路(电脑 ↔ COM12 ↔ K230)
-| 文件 | 作用 |
+RL(左后)、RR(右后)硬件接线无误,但同一个 `IN1=H, IN2=L` 信号
+让 FL/FR 前进、让 RL/RR 后退。**不改硬件、不改引脚数字**,而是显式标记
+"这两个电机方向反了",从而统一前进方向。
+
+### 逻辑
+
+目标: 四轮前进 → 代码 `set_target(+300)` → `drive(duty>0)` → `IN1=H, IN2=L`
+
+| 电机 | invert_dir | 效果 |
+|------|-----------|------|
+| FL / FR | `False`(默认) | `IN1=H, IN2=L` → TB6612 正转 → **前进** ✅ |
+| RL / RR | `True` | `__init__` 内部交换 `pin_in1 ↔ pin_in2`,`drive()` 写的 `self.in1=self.in2` 实际 GPIO 对调,TB6612 收到与 FL/FR 相同的信号 → **前进** ✅ |
+
+### 为什么这样做
+
+- **不改硬件**:不动线。
+- **不偷偷改引脚数字**:不把 RI 的 `IN1` 伪装成别人的引脚,而是显式语义 "此电机方向反了"。
+- **透明**:交换发生在 `__init__` 创建 Pin 对象之前。`drive() / brake() / calibrate_sign() / PI 控制` 一行未动,对后续所有逻辑完全透明。
+
+## 本版新增文件
+
+| 文件 | 说明 |
 |------|------|
-| `k230_repl.py` | 向 K230 发单条语句 |
-| `k230_run.py` | 执行本地文件(多文件拼接连载) |
-| `k230_upload.py` | 烧录文件(带 CRC32 校验) |
-| `k230_monitor.py` | 实时监视串口输出 |
+| `test_forward.py` | 四轮同步前进测试,调用 `MotorManager` 统一采样,`MOTORS` 表中标记 RL/RR 为 `True` |
+| `single_tests/test_fl.py` | FL(左前)单轮前进测试模板 |
+| `single_tests/test_fr.py` | FR(右前)单轮前进测试 |
+| `single_tests/test_rl.py` | RL(左后)单轮前进测试,`invert_dir=True` |
+| `single_tests/test_rr.py` | RR(右后)单轮前进测试,`invert_dir=True` |
 
-### 三层驱动框架
-| 层 | 文件 | 作用 |
-|----|------|------|
-| 第一层 | `motor_closed.py` | 单轮执行器封装 |
-| 第二三层 | `motor_manager.py` | `poll_all` 轮询 + `Chassis` 底盘 |
-| 验证库 | `motor_test_lib.py` | 电机验证流程封装 |
+## 接线(四轮差分)
 
-### 电机配置与测试
-电机测试脚本均标注了`(编码器频道 / 霍尔A,B / PWM 引脚)`：
+```
+FL  61 / 14,15 / 17,27      RL  46 / 36,37 / 40,41
+RR  47 / 3,4   / 5,6        FR  52 / 32,33 / 34,35
+STBY = GPIO2 (共用)
+```
 
-| 文件 | 轮位 | 频/脚位 |
-|------|------|---------|
-| `motor_fl_test.py` | FL 左前 | 61 / 14,15 / 17,27 |
-| `motor_rl_test.py` | RL 左后 | 46 / 36,37 / 40,41 |
-| `motor_rr_test.py` | RR 右后 | 47 / 3,4 / 5,6 |
-| `motor_fr_test.py` | FR 右前 | 52 / 32,33 / 34,35 |
-| `test_chassis.py` | 四驱差速 | 待跑 |
+## 与第一版的区别
 
-### 早期版本
-- `motor1_test.py` —— 最早的电机测试版本,引脚(GPIO40/41)已过时,保留作参考。
+- 第一版(仓库根目录):`ClosedMotor.__init__` 无 `invert_dir`,若有反向电机需要手动改引脚或换线。
+- 第二版(本目录):支持 `invert_dir` 参数化方向反转,RL/RR 显式标记为 `True`,其余逻辑不变。
