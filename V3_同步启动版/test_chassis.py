@@ -1,15 +1,10 @@
 """
 test_chassis.py —— 四驱底盘差速验证
 
-前提: 四个电机都已单独验证通过(FL / RL / RR / FR)。
-
 接线:
     FL  61 / 14,15 / 17,27      RL  46 / 36,37 / 40,41
     RR  47 / 3,4   / 5,6        FR  52 / 32,33 / 34,35
     STBY = GPIO2 (四个 TB6612 共用)
-
-用法:
-    python k230_run.py motor_closed.py motor_manager.py test_chassis.py COM12
 
 说明:
     四个电机共享一个 20ms 采样窗口(见 poll_all), 控制周期仍是 20ms,
@@ -35,20 +30,20 @@ PIN_STBY = 2
 
 # ---- (左速度, 右速度, 说明) ----
 STEPS = (
-    (400,  400, "直行"),
-    (400,  200, "右转(左快右慢)"),
-    (200,  400, "左转"),
-    (400, -400, "原地右转(左右反向)"),
-    (  0,    0, "停止"),
+    (700,  700, "直行"),
+    (700,  200, "右转(左快右慢)"),
+    (200,  700, "左转"),
+    (700, -700, "原地右转(左右反向)"),
 )
 STEP_MS = 2000
 
 
 def show(chassis, t0):
     sp = chassis.speeds()
-    print("  t=%4dms  FL=%+5d  RL=%+5d  RR=%+5d  FR=%+5d"
+    print("  t=%4dms  FL=%+5d  RL=%+5d  RR=%+5d  FR=%+5d  duty=%s"
           % (time.ticks_diff(time.ticks_ms(), t0),
-             int(sp[0]), int(sp[1]), int(sp[2]), int(sp[3])))
+             int(sp[0]), int(sp[1]), int(sp[2]), int(sp[3]),
+             [m.duty for m in chassis.motors]))
 
 
 if __name__ == "__main__":
