@@ -90,10 +90,10 @@ if __name__ == "__main__":
             time.sleep(1)
             print("  t=%4dms  滑行中..." % time.ticks_diff(time.ticks_ms(), t0))
 
-        # ======== 低速恢复 ========
-        print("--- 低速恢复: +300 Hz ---")
+        # ======== 倒车 ========
+        print("--- 倒车: -300 Hz ---")
         mgr.stop()
-        mgr.set_target(*([300] * 4))
+        mgr.set_target(*([-300] * 4))
         t0 = time.ticks_ms()
         n = 0
         while time.ticks_diff(time.ticks_ms(), t0) < STEP_MS:
